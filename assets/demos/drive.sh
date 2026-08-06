@@ -3,7 +3,7 @@
 # be seen pinning, handing over between turns, and then the options UI.
 # Usage: drive.sh <tmux-session>
 set -euo pipefail
-S="${1:?tmux session name required}"
+S="${1:?tmux pane id (e.g. %12) or session required}"
 
 # Typing a slash command opens pi's autocomplete; Escape closes the popup so the
 # following Enter submits the command instead of accepting a completion.
@@ -15,8 +15,11 @@ submit() {
 	tmux send-keys -t "$S" Enter
 }
 
-wheel_up() { tmux send-keys -t "$S" -l "$(printf '\033[<64;20;10M')"; }
-wheel_down() { tmux send-keys -t "$S" -l "$(printf '\033[<65;20;10M')"; }
+# SGR mouse wheel events, sent as raw bytes. `send-keys -l` re-parses the string
+# as key presses and mangles the escape sequence; -H writes the bytes verbatim.
+# ESC [ < 64 ; 20 ; 10 M  (wheel up) / 65 (wheel down)
+wheel_up() { tmux send-keys -t "$S" -H 1b 5b 3c 36 34 3b 32 30 3b 31 30 4d; }
+wheel_down() { tmux send-keys -t "$S" -H 1b 5b 3c 36 35 3b 32 30 3b 31 30 4d; }
 
 scroll_up() { for _ in $(seq 1 "$1"); do wheel_up; sleep "${2:-0.10}"; done; }
 scroll_down() { for _ in $(seq 1 "$1"); do wheel_down; sleep "${2:-0.06}"; done; }
@@ -56,3 +59,7 @@ submit "/sticky help"
 sleep 4.5
 tmux send-keys -t "$S" Escape
 sleep 1.2
+
+# 8. Finish on the hero view: prompt pinned, answer scrolling underneath.
+scroll_up 8 0.12
+sleep 2.5
