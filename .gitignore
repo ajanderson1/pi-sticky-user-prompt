@@ -2,3 +2,4 @@ node_modules/
 *.cast
 .DS_Store
 assets/stills/
+assets/verification/

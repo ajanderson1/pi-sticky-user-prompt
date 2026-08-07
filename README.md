@@ -9,7 +9,7 @@ it slides up, stops at the edge, and hands over to the previous turn as you scro
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg?style=flat-square)](LICENSE)
 [![pi extension](https://img.shields.io/badge/pi-extension-6E56CF?style=flat-square)](https://github.com/earendil-works/pi)
-[![fullscreen TUI](https://img.shields.io/badge/requires-%2D%2Dtui%2Dmode%20fullscreen-E0AF68?style=flat-square)](#-requirements)
+[![fullscreen TUI](https://img.shields.io/badge/requires-persistent%20fullscreen%20settings-E0AF68?style=flat-square)](#-requirements)
 
 ![sticky-user-prompt demo](assets/sticky-demo.gif)
 
@@ -58,21 +58,31 @@ scrolls off:
 ## ⚡ Requirements
 
 > [!IMPORTANT]
-> **This needs pi's fullscreen TUI: `pi --tui-mode fullscreen`.**
+> **This extension requires persistent fullscreen TUI settings before it can load.**
 >
 > In regular mode pi renders into normal terminal scrollback — your terminal owns those top rows,
-> not pi, so *no* extension can pin anything there. In regular mode this one degrades gracefully to
-> a strip above the editor while the model is streaming.
+> not pi, so *no* extension can pin anything there. This extension refuses to load in regular mode;
+> it does not provide a degraded strip fallback.
 
-Make it permanent in `~/.pi/agent/settings.json`:
+Set the effective Pi setting before launching the extension. Put this in `~/.pi/agent/settings.json`:
 
 ```json
 { "tuiMode": "fullscreen" }
 ```
 
-or flip it live from `/settings`. Fullscreen also gives you an independently scrollable transcript
-and draggable scrollbars; the trade is that pi owns the viewport, so your terminal's own scrollback
-no longer applies to the transcript.
+A project can instead set or override it in `.pi/settings.json`:
+
+```json
+{ "tuiMode": "fullscreen" }
+```
+
+The `pi --tui-mode fullscreen` CLI flag alone is **not sufficient** because extensions load before
+that runtime override is available. If the setting is absent or non-fullscreen, Pi reports an
+actionable extension-load error; edit the persistent settings file and restart Pi.
+
+Fullscreen also gives you an independently scrollable transcript and draggable scrollbars; the
+trade is that pi owns the viewport, so your terminal's own scrollback no longer applies to the
+transcript.
 
 ## 📦 Install
 
@@ -94,10 +104,10 @@ dependencies. Restart pi and it is live.
 
 </details>
 
-Then start pi in fullscreen and scroll:
+Restart pi normally, then scroll:
 
 ```bash
-pi --tui-mode fullscreen
+pi
 ```
 
 ## 🎛 Options
@@ -155,10 +165,16 @@ has its full prompt history pinnable immediately.
   during a handover. No jumps anywhere.
 - It reaches into three pi internals — `TuiAltScreen.prototype.setLayoutRoot` (to own the top row),
   `ScrollView.child` (to reach the document), and `UserMessageComponent` (to find section
-  boundaries). Each is guarded: if pi's shape changes, the extension falls back to the
-  above-the-editor strip instead of crashing.
+  boundaries). Each is guarded: if pi's shape changes, the sticky header omits unavailable pinned
+  content rather than attempting an unsupported regular-mode fallback.
 
 ## 🛠 Development
+
+Run the automated checks:
+
+```bash
+npm test
+```
 
 The demo is fully reproducible. It boots an isolated pi (its own `PI_CODING_AGENT_DIR` with only
 this extension loaded), replays a pre-seeded session so no model calls happen on camera, drives the
