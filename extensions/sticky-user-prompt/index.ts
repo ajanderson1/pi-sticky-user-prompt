@@ -24,6 +24,7 @@
 import fs from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { TuiAltScreen, VStack, isViewportTUI, sliceByColumn, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { effectiveScrollTop } from "./scroll-position.js";
 
 type Any = any;
 
@@ -307,12 +308,23 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 	/** Top sticky header: first row of the fullscreen layout root. */
 	const header = {
 		render(width: number): string[] {
-			if (!config.enabled) return [];
+			if (!config.enabled) {
+				lastHeight = 0;
+				return [];
+			}
 			const sv = scrollView();
-			if (!sv) return [];
+			if (!sv) {
+				lastHeight = 0;
+				return [];
+			}
 
 			measure(width);
-			const scrollTop: number = sv.scrollTop ?? 0;
+			const rawScrollTop: number = sv.scrollTop ?? 0;
+			// The sticky block is a normal layout sibling. While following the tail,
+			// its previous height has already reduced the transcript viewport and
+			// increased raw scrollTop by the same amount. Remove only that
+			// self-displacement before selecting the owning prompt.
+			const scrollTop = effectiveScrollTop(rawScrollTop, sv.isFollowingEnd, lastHeight);
 
 			const hit = pinned(scrollTop);
 			trace(scrollTop, hit);
@@ -346,7 +358,12 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 
 			// Degraded path: measurement found nothing (internal shape changed),
 			// but we still know the live prompt from events.
-			if (anchors.length === 0 && latestPrompt && scrollTop > 0) return fallbackBlock(width, latestPrompt);
+			if (anchors.length === 0 && latestPrompt && scrollTop > 0) {
+				const lines = fallbackBlock(width, latestPrompt);
+				lastHeight = lines.length;
+				return lines;
+			}
+			lastHeight = 0;
 			return [];
 		},
 		invalidate() {},
@@ -557,7 +574,8 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 			}
 			if (arg === "status") {
 				const sv = scrollView();
-				const scrollTop: number = sv?.scrollTop ?? 0;
+				const rawScrollTop: number = sv?.scrollTop ?? 0;
+				const scrollTop = effectiveScrollTop(rawScrollTop, sv?.isFollowingEnd ?? false, lastHeight);
 				const hit = pinned(scrollTop);
 				ctx.ui.notify(
 					[
@@ -565,7 +583,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 						`mode=${tuiRef && isViewportTUI(tuiRef) ? "fullscreen (top sticky)" : "regular (dock fallback)"}`,
 						`patched=${prototypePatched}`,
 						`anchors=${anchors.length}`,
-						`scrollTop=${scrollTop} content=${sv?.contentHeight ?? "-"}`,
+						`scrollTop=${scrollTop} raw=${rawScrollTop} content=${sv?.contentHeight ?? "-"}`,
 						`pinned=${hit ? `${hit.start}-${hit.end} "${hit.text.slice(0, 40)}"` : "none"}`,
 					].join("  "),
 					"info",

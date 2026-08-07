@@ -136,12 +136,18 @@ Every frame, the extension asks one question: *which message owns the top of the
    Leaf components cache their render per `(text, width)`, and pi's `ScrollView` already renders the
    whole document each frame, so this is a second pass over work pi has done anyway — microseconds,
    and only when the width or content height actually changes.
-2. **Select.** A binary search finds the last message whose first line has reached the top edge.
-3. **Reveal.** It renders exactly the rows of that message which have scrolled off, capped by the
+2. **Normalize.** While the transcript follows the tail, the previous sticky block has borrowed
+   rows from the viewport and increased pi's raw `scrollTop` by the same amount. The extension
+   subtracts that self-displacement before choosing a section. User-driven scroll positions are
+   left untouched. This prevents animated redraws such as `Working...` from feeding the header's
+   own height back into prompt selection.
+3. **Select.** A binary search finds the last message whose first line has reached the top edge.
+4. **Reveal.** It renders exactly the rows of that message which have scrolled off, capped by the
    row limit and by the distance to the next message.
 
 Because the pinned height always equals the document rows consumed, the pinned rows and the rows
-still scrolling stay one contiguous run. That is what makes the motion continuous.
+still scrolling stay one contiguous run. The header remains part of the fullscreen layout—not an
+on-top overlay—without allowing its own height to make prompt ownership oscillate.
 
 Anchors are rebuilt from the rendered document rather than tracked incrementally, so `/compact`,
 `/tree` navigation, terminal resizes, and **resumed sessions** all just work — a session you reopen
@@ -160,12 +166,22 @@ has its full prompt history pinnable immediately.
 
 ## 🛠 Development
 
-The demo is fully reproducible. It boots an isolated pi (its own `PI_CODING_AGENT_DIR` with only
-this extension loaded), replays a pre-seeded session so no model calls happen on camera, drives the
-TUI through tmux, and renders the GIF, MP4, and stills:
+Run the scroll-position regression tests:
 
 ```bash
-./assets/demos/record.sh          # cast -> gif -> mp4
+npm test
+```
+
+The tests cover tail-following compensation, manual scrolling, clamping at the document start, and
+repeated redraws at a prompt boundary—the geometry that previously flickered while `Working...`
+animated.
+
+The visual demo is fully reproducible. It boots an isolated pi (its own `PI_CODING_AGENT_DIR` with
+only this extension loaded), replays a pre-seeded session so no model calls happen on camera,
+drives the TUI through tmux, and renders the GIF, MP4, and stills:
+
+```bash
+./assets/demos/record.sh              # cast -> gif -> mp4
 ./assets/demos/shot.sh <pane> x.png   # pixel-exact screenshot of a live pane
 ```
 
