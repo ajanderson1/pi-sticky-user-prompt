@@ -29,12 +29,6 @@ Your transcript is really a stack of **sections**: each prompt opens one, and it
 next prompt. This extension pins the header of whichever section you are currently reading —
 exactly like sticky headers in a well-behaved list.
 
-<div align="center">
-
-![pinned prompt](assets/screenshot-pinned.png)
-
-</div>
-
 | Where you are | What is pinned |
 | --- | --- |
 | Reading turn N's answer | **turn N's prompt** |

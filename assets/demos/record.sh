@@ -51,16 +51,26 @@ tmux detach-client -s "$TMUX_SESSION" 2>/dev/null || true
 wait "$REC_PID" || true
 tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
 
-# Detaching prints "[detached (from session ...)]", which would otherwise be the
-# last thing on screen. Drop that tail so the video ends on the demo itself.
+# Detaching prints "[detached (from session ...)]" and then tears the terminal
+# down - clear screen, leave alt screen - which renders as a blank final frame.
+# Drop that whole tail so the video ends on the demo itself and loops cleanly.
 python3 - "$CAST" <<'PY'
 import sys
+
+# Scoped to the last few events on purpose: pi emits ESC[2J on every full
+# redraw, so an unscoped match would eat the whole recording.
+TEARDOWN = ("detached", r"[?1049l", r"[2J")
+WINDOW = 6
 path = sys.argv[1]
 lines = open(path).read().splitlines()
-cut = next((i for i, l in enumerate(lines) if "detached" in l), None)
+start = max(1, len(lines) - WINDOW)
+cut = next(
+    (i for i, l in enumerate(lines) if i >= start and any(m in l for m in TEARDOWN)),
+    None,
+)
 if cut:
     open(path, "w").write("\n".join(lines[:cut]) + "\n")
-    print(f"trimmed {len(lines) - cut} tail event(s) from the cast")
+    print(f"trimmed {len(lines) - cut} teardown event(s) from the cast")
 PY
 
 agg "$CAST" "$GIF" --theme dracula --font-size 18 --renderer fontdue \
