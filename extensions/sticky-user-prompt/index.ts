@@ -10,10 +10,9 @@
  * message that is still visible on screen is never duplicated.
  *
  * Fullscreen (alt-screen) TUI  -> true top-of-viewport sticky header.
- * Regular (main-screen) TUI    -> fallback strip above the editor while streaming,
- *                                because the terminal, not pi, owns those top rows.
+ * Persistent fullscreen settings are required; regular-mode TUI is unsupported.
  *
- * Internal couplings (each guarded; failure degrades, never crashes):
+ * Internal couplings (each guarded to avoid crashing on Pi shape changes):
  *   1. TuiAltScreen.prototype.setLayoutRoot  - to own the top row
  *   2. ScrollView.child                      - to reach the transcript document
  *   3. UserMessageComponent (name + .text)   - to locate section boundaries
@@ -22,8 +21,9 @@
  */
 
 import fs from "node:fs";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, SettingsManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { TuiAltScreen, VStack, isViewportTUI, sliceByColumn, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { assertFullscreenTui } from "./settings.js";
 
 type Any = any;
 
@@ -48,8 +48,6 @@ const MEASURE_THROTTLE_MS = 80;
 
 const config = {
 	enabled: true,
-	/** Show the fallback strip above the editor in regular (non-fullscreen) mode. */
-	fallbackInRegular: true,
 	/** Draw a dim rule under the sticky line. */
 	rule: true,
 	/** Max prompt characters retained before ellipsis. */
@@ -59,6 +57,8 @@ const config = {
 };
 
 export default function stickyUserPrompt(pi: ExtensionAPI) {
+	assertFullscreenTui(SettingsManager.create(process.cwd(), getAgentDir()));
+
 	let anchors: Anchor[] = [];
 	let measureKey = "";
 	let measuredAt = 0;
@@ -68,9 +68,8 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 	let nudgeBudget = 2;
 	let lastTotal = 0;
 	let lastBreakdown: Array<{ name: string; height: number; depth: number }> = [];
-	/** Latest prompt from events - drives the regular-mode dock and the degraded path. */
+	/** Latest prompt from events - drives the guarded empty-anchor fallback. */
 	let latestPrompt: string | null = null;
-	let streaming = false;
 	let theme: Any = null;
 	let tuiRef: Any = null;
 
@@ -291,7 +290,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 		}
 	};
 
-	/** Used in regular mode, where no live component exists to borrow. */
+	/** Used only when the fullscreen transcript shape temporarily yields no component. */
 	const fallbackBlock = (width: number, text: string, rule = config.rule): string[] => {
 		if (!text || width < 8) return [];
 		const body = text.length > width - 2 ? `${text.slice(0, Math.max(1, width - 3))}…` : text;
@@ -352,13 +351,10 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 		invalidate() {},
 	};
 
-	/** Fallback strip above the editor for regular (main-screen) mode. */
-	const dock = {
-		render(width: number): string[] {
-			if (!config.enabled || !latestPrompt) return [];
-			if (tuiRef && isViewportTUI(tuiRef)) return []; // fullscreen handles it up top
-			if (!config.fallbackInRegular || !streaming) return [];
-			return fallbackBlock(width, latestPrompt, false);
+	/** Empty widget used to receive the live TUI reference; the header owns rendering. */
+	const widget = {
+		render(_width: number): string[] {
+			return [];
 		},
 		invalidate() {},
 	};
@@ -413,7 +409,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 		ctx.ui.setWidget(WIDGET_KEY, (tui: Any, activeTheme: Any) => {
 			theme = activeTheme ?? theme;
 			attach(tui);
-			return dock;
+			return widget;
 		});
 	};
 
@@ -437,12 +433,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 
 	pi.on("before_agent_start", async (event: Any) => {
 		if (!latestPrompt) remember(event.prompt);
-		streaming = true;
 		return undefined;
-	});
-
-	pi.on("agent_settled", async () => {
-		streaming = false;
 	});
 
 	const VERBS: Array<{ value: string; label: string; description: string }> = [
@@ -463,7 +454,8 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 		"  Scroll up    it hands back to the previous turn, then the one before that.",
 		"  At the top   nothing is pinned above your first prompt.",
 		"",
-		`  Requires fullscreen TUI (--tui-mode fullscreen). Currently: ${tuiRef && isViewportTUI(tuiRef) ? "fullscreen, active" : "regular mode - only a strip above the editor while streaming"}.`,
+		"  Requires persistent { \"tuiMode\": \"fullscreen\" } in settings.json.",
+		"  The --tui-mode fullscreen CLI override alone is not supported.",
 		"",
 		...VERBS.map((v) => `  /sticky ${v.label.padEnd(10)} ${v.description.replace("now: N", `now: ${config.maxBlockLines}`)}`),
 	];
@@ -562,7 +554,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 				ctx.ui.notify(
 					[
 						`enabled=${config.enabled}`,
-						`mode=${tuiRef && isViewportTUI(tuiRef) ? "fullscreen (top sticky)" : "regular (dock fallback)"}`,
+						`mode=${tuiRef && isViewportTUI(tuiRef) ? "fullscreen (top sticky)" : "fullscreen (not attached)"}`,
 						`patched=${prototypePatched}`,
 						`anchors=${anchors.length}`,
 						`scrollTop=${scrollTop} content=${sv?.contentHeight ?? "-"}`,

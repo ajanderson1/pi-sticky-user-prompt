@@ -23,6 +23,9 @@
 	"license": "MIT",
 	"author": "AJ Anderson",
 	"type": "module",
+	"scripts": {
+		"test": "node --experimental-strip-types --test test/*.test.mjs"
+	},
 	"files": [
 		"extensions",
 		"README.md",
