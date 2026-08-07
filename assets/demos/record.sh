@@ -35,7 +35,7 @@ sleep 1
 asciinema rec --overwrite --window-size "${COLS}x${ROWS}" --idle-time-limit 2 \
 	--command "tmux attach -t $TMUX_SESSION" "$CAST" &
 REC_PID=$!
-sleep 2
+sleep 0.8
 
 # Never let a driver hiccup abort the run before the recorder is stopped,
 # otherwise asciinema keeps recording an idle screen forever.
@@ -51,8 +51,20 @@ tmux detach-client -s "$TMUX_SESSION" 2>/dev/null || true
 wait "$REC_PID" || true
 tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
 
+# Detaching prints "[detached (from session ...)]", which would otherwise be the
+# last thing on screen. Drop that tail so the video ends on the demo itself.
+python3 - "$CAST" <<'PY'
+import sys
+path = sys.argv[1]
+lines = open(path).read().splitlines()
+cut = next((i for i, l in enumerate(lines) if "detached" in l), None)
+if cut:
+    open(path, "w").write("\n".join(lines[:cut]) + "\n")
+    print(f"trimmed {len(lines) - cut} tail event(s) from the cast")
+PY
+
 agg "$CAST" "$GIF" --theme dracula --font-size 18 --renderer fontdue \
-	--speed 1.0 --idle-time-limit 3 --last-frame-duration 3
+	--speed 1.0 --idle-time-limit 1.5 --last-frame-duration 2
 ffmpeg -y -loglevel error -i "$GIF" -movflags faststart \
 	-vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" \
 	-c:v libx264 -preset slow -crf 24 -tune animation -pix_fmt yuv420p "$MP4"
