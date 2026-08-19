@@ -59,9 +59,11 @@ test("the factory loads with a persistent fullscreen setting", async () => {
 		const api = {
 			on: () => calls.push("on"),
 			registerCommand: () => calls.push("command"),
+			registerMarkdownTransformer: () => calls.push("transformer"),
 		};
 
 		assert.doesNotThrow(() => stickyUserPrompt(api));
+		assert.ok(calls.includes("transformer"));
 		assert.ok(calls.includes("on"));
 		assert.ok(calls.includes("command"));
 	} finally {
