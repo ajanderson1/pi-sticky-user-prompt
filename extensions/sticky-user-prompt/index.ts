@@ -26,6 +26,7 @@ import { TuiAltScreen, VStack, isViewportTUI, sliceByColumn, stripTerminalSequen
 import { decorateUserPrompt, hasContentAfter, lastContentRow } from "./prompt-rule.js";
 import { effectiveScrollTop } from "./scroll-position.js";
 import { assertFullscreenTui } from "./settings.js";
+import { fitLines } from "./width.js";
 
 type Any = any;
 
@@ -382,7 +383,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 						queueMicrotask(() => tuiRef?.requestRender?.());
 					}
 				}
-				if (lines.length > 0) return lines;
+				if (lines.length > 0) return fitLines(lines, width);
 			}
 
 			// Degraded path: measurement found nothing (internal shape changed),
@@ -390,7 +391,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 			if (anchors.length === 0 && latestPrompt && scrollTop > 0) {
 				const lines = fallbackBlock(width, latestPrompt);
 				lastHeight = lines.length;
-				return lines;
+				return fitLines(lines, width);
 			}
 			lastHeight = 0;
 			return [];
