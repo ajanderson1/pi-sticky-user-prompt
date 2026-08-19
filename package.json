@@ -24,7 +24,7 @@
 	"author": "AJ Anderson",
 	"type": "module",
 	"scripts": {
-		"test": "node --experimental-strip-types --test test/*.test.mjs"
+		"test": "node --experimental-strip-types --test test/*.test.mjs extensions/sticky-user-prompt/test/*.test.mjs"
 	},
 	"files": [
 		"extensions",
