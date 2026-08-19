@@ -22,11 +22,14 @@ MP4="$REPO/assets/sticky-demo.mp4"
 
 [ -f "$SESSION" ] || { echo "missing seeded session: $SESSION" >&2; exit 1; }
 
+mkdir -p "$AGENT_DIR"
+printf '{"tuiMode":"fullscreen"}\n' > "$AGENT_DIR/settings.json"
+
 tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
 # Capture the pane id: once asciinema attaches a read-only client, targeting the
 # session makes tmux resolve to that client and refuse with "client is read-only".
 PANE=$(tmux new-session -d -P -F '#{pane_id}' -s "$TMUX_SESSION" -x "$COLS" -y "$ROWS" -c "$DEMO" \
-	"PI_CODING_AGENT_DIR=$AGENT_DIR pi --session $SESSION --tui-mode fullscreen")
+	"PI_CODING_AGENT_DIR=$AGENT_DIR pi --session $SESSION")
 tmux set-option -t "$TMUX_SESSION" status off # keep tmux out of frame
 sleep 8
 tmux send-keys -t "$PANE" End
