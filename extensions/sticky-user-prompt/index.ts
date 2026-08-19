@@ -24,7 +24,7 @@
 import fs from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { TuiAltScreen, VStack, isViewportTUI, sliceByColumn, stripTerminalSequences } from "@earendil-works/pi-tui";
-import { decorateUserPrompt } from "./prompt-rule.js";
+import { decorateUserPrompt, lastContentRow } from "./prompt-rule.js";
 import { effectiveScrollTop } from "./scroll-position.js";
 
 type Any = any;
@@ -307,7 +307,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 		// The message is taller than the cap: mark the cut on the last message row
 		// actually shown (the rule row, when present, is not part of the message).
 		if (shown === height && lines.length > height) {
-			const last = out.length - (ruled ? 2 : 1);
+			const last = lastContentRow(out, out.length - (ruled ? 2 : 1), stripTerminalSequences);
 			if (last >= 0) out[last] = appendEllipsis(out[last], width);
 		}
 		return out;
