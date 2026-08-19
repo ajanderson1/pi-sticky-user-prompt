@@ -10,3 +10,7 @@ test("leaves non-user messages and a disabled rule unchanged", () => {
 	assert.equal(decorateUserPrompt("Reply", "assistant", true), "Reply");
 	assert.equal(decorateUserPrompt("Prompt", "user", false), "Prompt");
 });
+
+test("does not duplicate an authored final horizontal rule", () => {
+	assert.equal(decorateUserPrompt("Prompt\n\n---", "user", true), "Prompt\n\n---");
+});

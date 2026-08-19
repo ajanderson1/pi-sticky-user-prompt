@@ -24,6 +24,7 @@
 import fs from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { TuiAltScreen, VStack, isViewportTUI, sliceByColumn, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { decorateUserPrompt } from "./prompt-rule.js";
 import { effectiveScrollTop } from "./scroll-position.js";
 
 type Any = any;
@@ -102,6 +103,35 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 	/** Plain containers concatenate their children, so recursion is exact. */
 	const isPlainContainer = (component: Any): boolean =>
 		component?.constructor?.name === "Container" && Array.isArray(component.children);
+
+	/** Rebuild user messages so `/sticky rule` immediately updates their display-only Markdown. */
+	const refreshUserMessages = (): void => {
+		const sv = scrollView();
+		const doc = sv?.child;
+		if (!doc) return;
+
+		const visit = (component: Any): void => {
+			if (!component) return;
+			if (isUserMessage(component)) {
+				component.rebuild?.();
+				component.invalidate?.();
+				return;
+			}
+			if (isPlainContainer(component)) {
+				for (const child of component.children) visit(child);
+			}
+		};
+
+		try {
+			visit(doc);
+			doc.invalidate?.();
+			sv.invalidate?.();
+		} catch {
+			// The inline prompt keeps its previous rendering if pi's component shape changes.
+		}
+		measureKey = "";
+		tuiRef?.requestRender?.();
+	};
 
 	/**
 	 * Walk the transcript and record one anchor per user message.
@@ -206,7 +236,7 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 		const line = "─".repeat(width);
 		try {
 			if (shaded && typeof theme?.bg === "function" && typeof theme?.fg === "function") {
-				return theme.bg("userMessageBg", theme.fg("dim", line));
+				return theme.bg("userMessageBg", theme.fg("mdHr", line));
 			}
 			return theme?.fg ? theme.fg("dim", line) : line;
 		} catch {
@@ -442,6 +472,10 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 		tuiRef?.requestRender?.();
 	};
 
+	pi.registerMarkdownTransformer((markdown, { messageType }) =>
+		decorateUserPrompt(markdown, messageType, config.rule),
+	);
+
 	pi.on("session_start", async (_event, ctx) => mount(ctx));
 
 	pi.on("input", async (event: Any, ctx: Any) => {
@@ -605,8 +639,10 @@ export default function stickyUserPrompt(pi: ExtensionAPI) {
 				ctx.ui.notify(`sticky: dumped walk=${lastTotal} content=${sv?.contentHeight ?? "-"} to /tmp/sticky-dump.json`, "info");
 				return;
 			}
-			if (arg === "rule") config.rule = !config.rule;
-			else if (arg === "toggle" || arg === "") config.enabled = !config.enabled;
+			if (arg === "rule") {
+				config.rule = !config.rule;
+				refreshUserMessages();
+			} else if (arg === "toggle" || arg === "") config.enabled = !config.enabled;
 			else {
 				// Unknown verb: remind rather than silently toggling something.
 				await showHelp(ctx);
