@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decorateUserPrompt, lastContentRow } from "../prompt-rule.js";
+import { decorateUserPrompt, hasContentAfter, lastContentRow } from "../prompt-rule.js";
 
 test("adds a Markdown rule only to enabled user prompts", () => {
 	assert.equal(decorateUserPrompt("Explain this", "user", true), "Explain this\n\n---");
@@ -18,4 +18,9 @@ test("does not duplicate an authored final horizontal rule", () => {
 test("finds the last content row before sticky-rule padding", () => {
 	assert.equal(lastContentRow([" top padding ", "Prompt text", "   "], 2), 1);
 	assert.equal(lastContentRow(["", "   "], 1), -1);
+});
+
+test("does not treat trailing user-message padding as truncated content", () => {
+	assert.equal(hasContentAfter([" ", "Prompt", " ", "────", " "], 4), false);
+	assert.equal(hasContentAfter([" ", "Prompt", " ", "────", "More prompt text"], 4), true);
 });

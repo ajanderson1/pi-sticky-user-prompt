@@ -11,3 +11,7 @@ export function lastContentRow(lines, end, toPlain = (line) => line) {
 	}
 	return -1;
 }
+
+export function hasContentAfter(lines, start, toPlain = (line) => line) {
+	return lines.slice(start).some((line) => toPlain(line).trim());
+}
